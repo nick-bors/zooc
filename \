@@ -215,24 +215,17 @@ main(int argc, char *argv[])
         die("Error whilst linking program:\n%s", infoLog);
     }
 
-    int ww = wa.width;
-    int hh = wa.height;
+    int w = wa.width;
+    int h = wa.height;
 
     GLuint vbo, vao;
     GLfloat vertices[] = {
-      -0.5f, -0.5f, 0.0f, // left  
-        0.5f, -0.5f, 0.0f, // right 
-        0.0f,  0.5f, 0.0f  // top   
+        /* x  y     z       UV coords */
+        w,    0.0f, 0.0f,   1.0f, 1.0f, /* Top right */
+        w,    h,    0.0f,   1.0f, 0.0f, /* Bot right */
+        0.0f, 0.0f, 0.0f,   0.0f, 1.0f, /* Bot left  */
+        0.0f, h,    0.0f,   0.0f, 0.0f, /* Top left  */
     };
-    /*
-    GLfloat vertices[] = {
-        //x   y     z       UV coords
-        ww,   0.0f, 0.0f,   1.0f, 1.0f, //Top right
-        ww,   hh,   0.0f,   1.0f, 0.0f, //Bot right
-        0.0f, 0.0f, 0.0f,   0.0f, 1.0f, //Bot left 
-        0.0f, hh,   0.0f,   0.0f, 0.0f, //Top left 
-    };
-    */
     /* Indecies of the triangles. 
      * We want to fill a screen rect so we create two triangles:
      * 3_____0
@@ -268,9 +261,6 @@ main(int argc, char *argv[])
         glUseProgram(shaderProgram);
         glBindVertexArray(vao);
         glDrawArrays(GL_TRIANGLES, 0, 3);
-        glXSwapBuffers(dpy, w);
-        glFinish();
-
         // HACK: setting this every time is probably inefficient. Is there a 
         // better way to maintain fullscreen input focus?
         if (!conf.windowed)

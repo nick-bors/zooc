@@ -54,7 +54,7 @@ loadConf(const char *fileName)
 
             c = strtok(NULL, " \t=");
             if (c == NULL)
-                die("Expected value for argument %s", arg);
+                die(NULL, "Expected value for argument %s", arg);
 
             if (!strcmp(arg, "min_scale")) {
                 conf.min_scale = strtof(c, NULL);

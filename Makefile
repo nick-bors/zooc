@@ -5,7 +5,7 @@ CFLAGS=-I$(IDIR) -g
 ODIR=.
 LDIR =../lib
 
-LIBS=-lX11 -lGL -lglut
+LIBS=-lX11 -lGL -lGLEW
 
 _DEPS = util.h config.h
 DEPS  = $(patsubst %,$(IDIR)/%,$(_DEPS))
