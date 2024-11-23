@@ -1,4 +1,5 @@
 #include <X11/Xutil.h>
+#include <math.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -17,9 +18,13 @@
 
 #include "util.h"
 #include "config.h"
+#include "vec.h"
 
-#define MIN_GLX_MAJOR 1
-#define MIN_GLX_MINOR 3
+#define MIN_GLX_MAJOR   1
+#define MIN_GLX_MINOR   3
+
+#define VELOCITY_THRESHOLD  15.0f
+#define DELTA_RADIUS_DECELERATION 10.0f
 
 typedef struct {
     bool isEnabled;
@@ -27,6 +32,14 @@ typedef struct {
     GLfloat radius;
     GLfloat deltaRadius;
 } Flashlight;
+
+typedef struct {
+    Vec2f position;
+    Vec2f velocity;
+    GLfloat scale;
+    GLfloat deltaScale;
+    GLfloat scalePivot;
+} Camera;
 
 void expose(XEvent *);
 void keypress(XEvent *);
@@ -37,6 +50,21 @@ static int screen = 0;
 static XWindowAttributes wa;
 static Window w;
 static bool running = true;
+
+static Flashlight flashlight = {
+    .isEnabled = false,
+    .shadowPercentage = 0.0f,
+    .radius = 200.0f,
+    .deltaRadius = 0.0f,
+};
+
+static Camera camera = {
+    .position = ZERO,
+    .velocity = ZERO,
+    .scale = 1.0f,
+    .deltaScale = 0.0f,
+    .scalePivot = 0.0f
+};
 
 static void (*handler[LASTEvent]) (XEvent *) = {
     [Expose] = expose,
@@ -105,6 +133,42 @@ void
 destroyScreenshot(XImage *screenshot)
 {
     XDestroyImage(screenshot);
+}
+
+void
+drawImage(XImage *img, Camera camera, GLuint shader, GLuint vao, GLuint texture, Vec2f windowSize, /*Mouse mouse,*/ Flashlight flashlight)
+{
+    glClearColor(0.1, 0.1, 0.1, 1.0);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    glUseProgram(shader);
+
+    glUniform2f(glGetUniformLocation(shader, "cameraPos"), camera.position.x, camera.position.y);
+    glUniform1f(glGetUniformLocation(shader, "cameraScale"), camera.scale);
+    glUniform2f(glGetUniformLocation(shader, "screenshotSize"), (float)img->width, (float)img->height);
+    glUniform2f(glGetUniformLocation(shader, "windowSize"), windowSize.x, windowSize.y);
+    glUniform2f(glGetUniformLocation(shader, "cursorPos"), 1920.0f - 200.0f, 100.0f);
+    glUniform1f(glGetUniformLocation(shader, "flShadow"), flashlight.shadowPercentage);
+    glUniform1f(glGetUniformLocation(shader, "flRadius"), flashlight.radius);
+
+    glBindVertexArray(vao);
+    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, NULL);
+}
+
+void
+updateFlashlight(GLfloat dt)
+{
+    if (fabsf(flashlight.deltaRadius) > 1.0f) {
+        flashlight.radius = MAX(0.0f, flashlight.radius + flashlight.deltaRadius * dt);
+        flashlight.deltaRadius -= flashlight.deltaRadius * DELTA_RADIUS_DECELERATION;
+    }
+
+    /* Smoothly interpolate between on/off */
+    if (flashlight.isEnabled) {
+        flashlight.shadowPercentage = MIN(flashlight.shadowPercentage + 6.0 * dt, 0.8f);
+    } else {
+        flashlight.shadowPercentage = MAX(flashlight.shadowPercentage - 6.0 * dt, 0.0f);
+    }
 }
 
 int
@@ -177,7 +241,6 @@ main(int argc, char *argv[])
         die("Couldnt initialize glew!");
     
     glViewport(0, 0, wa.width, wa.height);
-    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 
     // TODO: figure out what loadExtensions means
     XSelectInput(dpy, w, ExposureMask | KeyPressMask);
@@ -215,24 +278,24 @@ main(int argc, char *argv[])
         die("Error whilst linking program:\n%s", infoLog);
     }
 
-    int ww = wa.width;
-    int hh = wa.height;
+    XImage *screenshot = getScreenshot();
+    float ww = screenshot->width;
+    float hh = screenshot->height;
 
-    GLuint vbo, vao;
+    GLuint vbo, vao, ebo;
     GLfloat vertices[] = {
-      -0.5f, -0.5f, 0.0f, // left  
-        0.5f, -0.5f, 0.0f, // right 
-        0.0f,  0.5f, 0.0f  // top   
-    };
-    /*
-    GLfloat vertices[] = {
+         1.0,  -1.0, 0.0, 1.0, 1.0, // Top right
+         1.0,  1.0,  0.0, 1.0, 0.0, // Bottom right
+        -1.0,  1.0,  0.0, 0.0, 0.0, // Bottom left
+        -1.0,  -1.0, 0.0, 0.0, 1.0  // Top left
+        /*
         //x   y     z       UV coords
         ww,   0.0f, 0.0f,   1.0f, 1.0f, //Top right
         ww,   hh,   0.0f,   1.0f, 0.0f, //Bot right
         0.0f, 0.0f, 0.0f,   0.0f, 1.0f, //Bot left 
         0.0f, hh,   0.0f,   0.0f, 0.0f, //Top left 
+        */
     };
-    */
     /* Indecies of the triangles. 
      * We want to fill a screen rect so we create two triangles:
      * 3_____0
@@ -242,10 +305,12 @@ main(int argc, char *argv[])
      *
      * Therefore we have two triangles, 0-1-3 and 1-2-3.
      */
-    GLuint indecies[] = {0, 1, 3, 1, 2, 3};
+    GLuint indices[] = {0, 1, 3, 1, 2, 3};
 
     glGenVertexArrays(1, &vao);
     glGenBuffers(1, &vbo);
+    glGenBuffers(1, &ebo);
+
     glBindVertexArray(vbo);
 
     glBindVertexArray(vao);
@@ -253,30 +318,76 @@ main(int argc, char *argv[])
     glBindBuffer(GL_ARRAY_BUFFER, vbo);
     glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
 
-    GLsizei stride = 3 * sizeof(GLfloat);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW); 
 
+    GLsizei stride = 5 * sizeof(GLfloat);
+
+    /* Pos attribute = vec3(x, y, z) */
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, stride, (void*)0);
     glEnableVertexAttribArray(0);
 
-    glUseProgram(shaderProgram);
+    /* UV attribute = vec2(x, y) */
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, stride, (void*)0);
+    glEnableVertexAttribArray(1);
+
+    GLint texture = 0;
+    glGenTextures(1, &texture);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, texture);
+
+    glTexImage2D(
+        GL_TEXTURE_2D, 
+        0, 
+        GL_RGB, 
+        screenshot->width,
+        screenshot->height,
+        0,
+        GL_BGRA,
+        GL_UNSIGNED_BYTE,
+        screenshot->data
+    );
+    glGenerateMipmap(GL_TEXTURE_2D);
+
+    /* bind tex in the glsl code to be the loaded texture */
+    glUniform1i(glGetUniformLocation(shaderProgram, "tex"), 0);
+
+    glEnable(GL_TEXTURE_2D);
+
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
 
     XEvent e;
     while (running) {
-        glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
-        glClear(GL_COLOR_BUFFER_BIT);
-
-        glUseProgram(shaderProgram);
-        glBindVertexArray(vao);
-        glDrawArrays(GL_TRIANGLES, 0, 3);
-        glXSwapBuffers(dpy, w);
-        glFinish();
-
         // HACK: setting this every time is probably inefficient. Is there a 
         // better way to maintain fullscreen input focus?
         if (!conf.windowed)
             XSetInputFocus(dpy, w, RevertToParent, CurrentTime);
+
+        glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+        glUseProgram(shaderProgram);
+        glBindVertexArray(vao);
+        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+        glBindVertexArray(0);
+
+        updateFlashlight(1.0/60.0f);
+        drawImage(screenshot, camera, shaderProgram, vao, texture, (Vec2f){wa.width, wa.height}, flashlight);
+
+        glXSwapBuffers(dpy, w);
+        glFinish();
+
+        XSync(dpy, 0);
+
         XNextEvent(dpy, &e);
         switch (e.type) {
+        case ClientMessage:
+            if ((Atom)e.xclient.data.l[0] == wmDeleteAtom)
+                running = false;
+            break;
         case KeyPress:
             handler[e.type](&e);
             break;
@@ -308,8 +419,14 @@ keypress(XEvent *e)
     printf("event: keypress\n");
     ev = &e->xkey;
     keysym = XkbKeycodeToKeysym(dpy, (KeyCode)ev->keycode, 0, e->xkey.state & ShiftMask ? 1 : 0);
-    if (keysym == XK_q || keysym == XK_Escape) {
-        running = false; 
+    switch (keysym) {
+    case XK_q:
+    case XK_Escape:
+        running = false;
+        break;
+    case XK_f:
+        flashlight.isEnabled = !flashlight.isEnabled;
+        break;
     }
 }
 

@@ -1,3 +1,6 @@
+#ifndef ZOOC_CONFIG_H
+#define ZOOC_CONFIG_H
+
 #include <stdbool.h>
 #include <stdio.h>
 
@@ -13,3 +16,5 @@ typedef struct {
 
 void writeDefaultConf(FILE*);
 Config loadConf(const char*);
+
+#endif

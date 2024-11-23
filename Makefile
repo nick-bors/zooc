@@ -1,6 +1,6 @@
 IDIR =.
 CC=gcc
-CFLAGS=-I$(IDIR) -g
+CFLAGS=-I$(IDIR) -g -Wall -Wextra -pedantic
 
 ODIR=.
 LDIR =../lib
