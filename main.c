@@ -154,7 +154,7 @@ keypress(XEvent *e)
     case XK_0:
         camera.scale = 1.0f;
         camera.delta_scale = 0.0f;
-        camera.velocity = camera.position = (Vec2f) {{0, 0}};
+        camera.velocity = camera.position = (Vec2f) {0, 0};
         break;
     case XK_r:
         config = load_config("config.conf");
@@ -225,7 +225,7 @@ motion_notify(XEvent *e)
 
     ev = (XMotionEvent*)&e->xmotion;
 
-    mouse.current = (Vec2f) {{ev->x, ev->y}};
+    mouse.current = (Vec2f) {ev->x, ev->y};
     if (mouse.dragging) {
         Vec2f delta = SUB(world(&camera, mouse.previous), world(&camera, mouse.current));
         /* delta is the distance the mouse traveled in a single
@@ -245,8 +245,7 @@ main(int argc, char *argv[])
 
     dpy = XOpenDisplay(NULL);
     if (dpy == NULL) {
-        printf("Cannot connect to the X display server\n");
-        exit(EXIT_FAILURE);
+        die("Cannot connect to the X display server\n");
     }
     check_glx_version(dpy);
 
@@ -261,7 +260,7 @@ main(int argc, char *argv[])
 
     XVisualInfo *vi = glXChooseVisual(dpy, screen, attrs);
     if (vi == NULL)
-        die("No appropriate visual found");
+        die("No appropriate visual found\n");
 
     XSetWindowAttributes swa;
     memset(&swa,0,sizeof(XSetWindowAttributes));
@@ -304,7 +303,7 @@ main(int argc, char *argv[])
     glXMakeCurrent(dpy, w, glc);
 
     if (GLEW_OK != glewInit())
-        die("Couldnt initialize glew!");
+        die("Couldnt initialize glew!\n");
 
     glViewport(0, 0, wa.width, wa.height);
 
@@ -344,7 +343,7 @@ main(int argc, char *argv[])
     }
 
     XImage *screenshot = get_screenshot();
-    Vec2f screenshot_size = (Vec2f) {{screenshot->width, screenshot->height}};
+    Vec2f screenshot_size = (Vec2f) {screenshot->width, screenshot->height};
 
     int sw = screenshot_size.x;
     int sh = screenshot_size.y;

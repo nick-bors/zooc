@@ -51,7 +51,7 @@ initialize_mouse(Display *dpy, Mouse *m)
         &_mask
     );
 
-    m->current = m->previous = (Vec2f){{root_x, root_y}};
+    m->current = m->previous = (Vec2f) {root_x, root_y};
     m->dragging = false;
 }
 

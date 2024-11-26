@@ -39,7 +39,7 @@ load_config(const char *fileName)
     if (f == NULL) {
         f = fopen(fileName, "wr");
         if (f == NULL)
-            die("Unable to open config file %s", fileName);
+            die("Unable to open config file %s\n", fileName);
         write_default_config(f);
     }
 
@@ -56,7 +56,7 @@ load_config(const char *fileName)
 
             c = strtok(NULL, " \t=");
             if (c == NULL)
-                die(NULL, "Expected value for argument %s", arg);
+                die(NULL, "Expected value for argument %s\n", arg);
 
             if (!strcmp(arg, "min_scale")) {
                 conf.min_scale = strtof(c, NULL);
@@ -84,7 +84,7 @@ load_config(const char *fileName)
                     break;
                 }
             } else {
-                die("Unexpected configuration key '%s'", arg);
+                die("Unexpected configuration key '%s'\n", arg);
             }
 
             /* get next arg */
