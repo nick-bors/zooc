@@ -56,20 +56,20 @@ initialize_mouse(Display *dpy, Mouse *m)
 }
 
 void
-update_camera(Camera *cam, Config *config, Mouse *mouse, Vec2f window_size, float dt)
+update_camera(Camera *cam, Config *config, Mouse *mouse, Vec2f window_size)
 {
     if (fabsf(cam->delta_scale) > 0.5f) {
         Vec2f p0 = DIVS(SUB(cam->scale_pivot, MULS(window_size, 0.5)), cam->scale);
-        cam->scale = CLAMP(config->min_scale, cam->scale + cam->delta_scale * dt, config->max_scale);
+        cam->scale = CLAMP(config->min_scale, cam->scale + cam->delta_scale * cam->dt, config->max_scale);
         Vec2f p1 = DIVS(SUB(cam->scale_pivot, MULS(window_size, 0.5)), cam->scale);
         cam->position = ADD(cam->position, SUB(p0, p1));
 
-        cam->delta_scale -= cam->delta_scale * dt * config->scale_friction;
+        cam->delta_scale -= cam->delta_scale * cam->dt * config->scale_friction;
     }
 
     if (!mouse->dragging && (LEN(cam->velocity) > VELOCITY_THRESHOLD)) {
-        cam->position = ADD(cam->position, MULS(cam->velocity, dt));
-        cam->velocity = SUB(cam->velocity, MULS(cam->velocity, dt * config->drag_friction));
+        cam->position = ADD(cam->position, MULS(cam->velocity, cam->dt));
+        cam->velocity = SUB(cam->velocity, MULS(cam->velocity, cam->dt * config->drag_friction));
     }
 }
 

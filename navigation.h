@@ -16,6 +16,7 @@ typedef struct {
     Vec2f scale_pivot;
     GLfloat scale;
     GLfloat delta_scale;
+    float dt;
 } Camera;
 
 typedef struct {
@@ -33,7 +34,7 @@ typedef struct {
 
 Vec2f world(Camera *, Vec2f);
 void initialize_mouse(Display *, Mouse *);
-void update_camera(Camera *, Config *, Mouse *, Vec2f, float);
+void update_camera(Camera *, Config *, Mouse *, Vec2f);
 void update_flashlight(Flashlight *, float);
 
 #endif
