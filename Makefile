@@ -5,7 +5,7 @@ CFLAGS=-I$(IDIR) -g -Wall -Wextra -pedantic -Wmissing-declarations
 ODIR=.
 LDIR =../lib
 
-LIBS=-lX11 -lGL -lGLEW -lm
+LIBS=-lX11 -lGL -lGLEW -lm -lXrandr
 
 _DEPS = util.h config.h navigation.h
 DEPS  = $(patsubst %,$(IDIR)/%,$(_DEPS))

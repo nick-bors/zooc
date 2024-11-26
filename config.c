@@ -6,6 +6,8 @@
 #include "config.h"
 #include "util.h"
 
+Config get_default_config();
+
 Config
 get_default_config()
 {
@@ -27,7 +29,7 @@ write_default_config(FILE *f)
     fprintf(f, "scroll_speed   = 1.5\n");
     fprintf(f, "drag_friction  = 6.0\n");
     fprintf(f, "scale_friction = 4.0\n");
-    fprintf(f, "windowed       = true\n");
+    fprintf(f, "windowed       = false\n");
 }
 
 Config

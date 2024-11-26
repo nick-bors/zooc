@@ -5,6 +5,7 @@
 #include <sys/types.h>
 
 #include <X11/X.h>
+#include <X11/extensions/Xrandr.h>
 #include <X11/XKBlib.h>
 #include <X11/Xatom.h>
 #include <X11/Xlib.h>
@@ -29,7 +30,7 @@ void button_press(XEvent *);
 void button_release(XEvent *);
 void check_glx_version(Display *);
 void destroy_screenshot(XImage*);
-void expose(XEvent *);
+void draw_image(Camera *, XImage *, GLuint, GLuint, Vec2f, Mouse *, Flashlight *);
 void keypress(XEvent *);
 void motion_notify(XEvent *);
 void scroll_down(XButtonEvent *);
@@ -48,7 +49,6 @@ static Config config;
 
 static void (*handler[LASTEvent]) (XEvent *) = {
     [MotionNotify] = motion_notify,
-    [Expose] = expose,
     [KeyPress] = keypress,
     [ButtonPress] = button_press,
     [ButtonRelease] = button_release,
@@ -138,6 +138,105 @@ draw_image(Camera *cam, XImage *img, GLuint shader, GLuint vao, Vec2f window_siz
     glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, NULL);
 }
 
+void 
+keypress(XEvent *e) 
+{
+    KeySym keysym;
+    XKeyEvent *ev;
+
+    ev = (XKeyEvent*)&e->xkey;
+    keysym = XkbKeycodeToKeysym(dpy, ev->keycode, 0, e->xkey.state & ShiftMask ? 1 : 0);
+    switch (keysym) {
+    case XK_q:
+    case XK_Escape:
+        running = false;
+        break;
+    case XK_0:
+        camera.scale = 1.0f;
+        camera.delta_scale = 0.0f;
+        camera.velocity = camera.position = (Vec2f) {{0, 0}};
+        break;
+    case XK_r:
+        config = load_config("config.conf");
+        break;
+    case XK_f:
+        flashlight.is_enabled = !flashlight.is_enabled;
+        break;
+    }
+}
+
+void
+scroll_up(XButtonEvent *e) 
+{
+    if ((e->state & ControlMask) > 0 && flashlight.is_enabled) {
+        flashlight.delta_radius += 250.0f;
+    } else {
+          camera.delta_scale += config.scroll_speed;
+          camera.scale_pivot = mouse.current;
+    }
+}
+
+void
+scroll_down(XButtonEvent *e)
+{
+    if ((e->state & ControlMask) > 0 && flashlight.is_enabled) {
+        flashlight.delta_radius -= 250.0f;
+    } else {
+        camera.delta_scale -= config.scroll_speed;
+        camera.scale_pivot = mouse.current;
+    }
+}
+
+void
+button_press(XEvent *e)
+{
+    XButtonEvent *ev;
+    
+    ev = (XButtonEvent*)&e->xbutton;
+    switch (ev->button) {
+    case Button1:
+        mouse.previous = mouse.current;
+        mouse.dragging = true;
+        camera.velocity = ZERO;
+        break;
+    case Button4:
+        scroll_up((XButtonEvent*)e);
+        break;
+    case Button5:
+        scroll_down((XButtonEvent*)e);
+        break;
+    }
+}
+
+void
+button_release(XEvent *e)
+{
+    XButtonEvent *ev;
+
+    ev = (XButtonEvent*)&e->xbutton;
+    if (ev->button == Button1)
+        mouse.dragging = false;
+}
+
+void
+motion_notify(XEvent *e)
+{
+    XMotionEvent *ev;
+
+    ev = (XMotionEvent*)&e->xmotion;
+
+    mouse.current = (Vec2f) {{ev->x, ev->y}};
+    if (mouse.dragging) {
+        Vec2f delta = SUB(world(&camera, mouse.previous), world(&camera, mouse.current));
+        /* delta is the distance the mouse traveled in a single
+         * frame. To turn the velocity into units/second we need to
+         * multiple it by FPS.
+         */
+        camera.position = ADD(camera.position, delta);
+        camera.velocity = MULS(delta, camera.dt);
+    }
+    mouse.previous = mouse.current;
+}
 
 int
 main(int argc, char *argv[])
@@ -173,7 +272,6 @@ main(int argc, char *argv[])
         | KeyPressMask 
         | KeyReleaseMask 
         | PointerMotionMask 
-        | ExposureMask 
         | ClientMessage;
 
     if (!config.windowed) {
@@ -207,10 +305,10 @@ main(int argc, char *argv[])
 
     if (GLEW_OK != glewInit())
         die("Couldnt initialize glew!");
-    
+
     glViewport(0, 0, wa.width, wa.height);
 
-    XSelectInput(dpy, w, ButtonPressMask | ButtonReleaseMask | KeyPressMask | KeyReleaseMask | PointerMotionMask | ExposureMask);
+    XSelectInput(dpy, w, ButtonPressMask | ButtonReleaseMask | KeyPressMask | KeyReleaseMask | PointerMotionMask);
 
     int revert_to_parent;
     Window origin_win;
@@ -322,6 +420,9 @@ main(int argc, char *argv[])
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
 
+    XRRScreenConfiguration *screen_config = XRRGetScreenInfo(dpy, DefaultRootWindow(dpy));
+    float rate = 1.0f / XRRConfigCurrentRate(screen_config);
+
     flashlight = (Flashlight) {
         .is_enabled = false,
         .shadow = 0.0f,
@@ -335,6 +436,7 @@ main(int argc, char *argv[])
         .scale_pivot = ZERO,
         .scale = 1.0f,
         .delta_scale = 0.0f,
+        .dt = rate,
     };
 
     initialize_mouse(dpy, &mouse);
@@ -367,8 +469,8 @@ main(int argc, char *argv[])
         glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        update_flashlight(&flashlight, 1.0f/60.0f);
-        update_camera(&camera, &config, &mouse, screenshot_size, 1.0f/60.0f);
+        update_flashlight(&flashlight, camera.dt);
+        update_camera(&camera, &config, &mouse, screenshot_size);
 
         glUseProgram(shader_program);
         glBindVertexArray(vao);
@@ -391,109 +493,4 @@ main(int argc, char *argv[])
 
     XCloseDisplay(dpy);
     return 0;
-}
-
-void 
-keypress(XEvent *e) 
-{
-    KeySym keysym;
-    XKeyEvent *ev;
-
-    ev = (XKeyEvent*)&e->xkey;
-    keysym = XkbKeycodeToKeysym(dpy, ev->keycode, 0, e->xkey.state & ShiftMask ? 1 : 0);
-    switch (keysym) {
-    case XK_q:
-    case XK_Escape:
-        running = false;
-        break;
-    case XK_0:
-        camera.scale = 1.0f;
-        camera.delta_scale = 0.0f;
-        camera.velocity = camera.position = (Vec2f) {{0, 0}};
-        break;
-    case XK_r:
-        config = load_config("config.conf");
-        break;
-    case XK_f:
-        flashlight.is_enabled = !flashlight.is_enabled;
-        break;
-    }
-}
-
-void
-expose(XEvent *_e)
-{
-}
-
-void
-scroll_up(XButtonEvent *e) 
-{
-    if ((e->state & ControlMask) > 0 && flashlight.is_enabled) {
-        flashlight.delta_radius += 250.0f;
-    } else {
-          camera.delta_scale += config.scroll_speed;
-          camera.scale_pivot = mouse.current;
-    }
-}
-
-void
-scroll_down(XButtonEvent *e)
-{
-    if ((e->state & ControlMask) > 0 && flashlight.is_enabled) {
-        flashlight.delta_radius -= 250.0f;
-    } else {
-        camera.delta_scale -= config.scroll_speed;
-        camera.scale_pivot = mouse.current;
-    }
-}
-
-void
-button_press(XEvent *e)
-{
-    XButtonEvent *ev;
-    
-    ev = (XButtonEvent*)&e->xbutton;
-    switch (ev->button) {
-    case Button1:
-        mouse.previous = mouse.current;
-        mouse.dragging = true;
-        camera.velocity = ZERO;
-        break;
-    case Button4:
-        scroll_up((XButtonEvent*)e);
-        break;
-    case Button5:
-        scroll_down((XButtonEvent*)e);
-        break;
-    }
-}
-
-void
-button_release(XEvent *e)
-{
-    XButtonEvent *ev;
-
-    ev = (XButtonEvent*)&e->xbutton;
-    if (ev->button == Button1)
-        mouse.dragging = false;
-}
-
-void
-motion_notify(XEvent *e)
-{
-    XMotionEvent *ev;
-
-    ev = (XMotionEvent*)&e->xmotion;
-
-    mouse.current = (Vec2f) {{ev->x, ev->y}};
-    if (mouse.dragging) {
-        Vec2f delta = SUB(world(&camera, mouse.previous), world(&camera, mouse.current));
-        /* delta is the distance the mouse traveled in a single
-         * frame. To turn the velocity into units/second we need to
-         * multiple it by FPS.
-         */
-        camera.position = ADD(camera.position, delta);
-        camera.velocity = MULS(delta, 1.0f/60.0f);
-    }
-    mouse.previous = mouse.current;
 }
