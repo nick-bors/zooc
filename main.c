@@ -33,8 +33,8 @@ void destroy_screenshot(XImage*);
 void draw_image(Camera *, XImage *, GLuint, GLuint, Vec2f, Mouse *, Flashlight *);
 void keypress(XEvent *);
 void motion_notify(XEvent *);
-void scroll_down(XButtonEvent *);
-void scroll_up(XButtonEvent *);
+void scroll_down(unsigned int);
+void scroll_up(unsigned int);
 
 static Display *dpy = NULL;
 static int screen = 0;
@@ -147,6 +147,12 @@ keypress(XEvent *e)
     ev = (XKeyEvent*)&e->xkey;
     keysym = XkbKeycodeToKeysym(dpy, ev->keycode, 0, e->xkey.state & ShiftMask ? 1 : 0);
     switch (keysym) {
+    case XK_minus:
+        scroll_down(1);
+        break;
+    case XK_equal:
+        scroll_up(1);
+        break;
     case XK_q:
     case XK_Escape:
         running = false;
@@ -166,9 +172,9 @@ keypress(XEvent *e)
 }
 
 void
-scroll_up(XButtonEvent *e) 
+scroll_up(unsigned int delta) 
 {
-    if ((e->state & ControlMask) > 0 && flashlight.is_enabled) {
+    if (delta > 0 && flashlight.is_enabled) {
         flashlight.delta_radius += 250.0f;
     } else {
           camera.delta_scale += config.scroll_speed;
@@ -177,9 +183,9 @@ scroll_up(XButtonEvent *e)
 }
 
 void
-scroll_down(XButtonEvent *e)
+scroll_down(unsigned int delta)
 {
-    if ((e->state & ControlMask) > 0 && flashlight.is_enabled) {
+    if (delta > 0 && flashlight.is_enabled) {
         flashlight.delta_radius -= 250.0f;
     } else {
         camera.delta_scale -= config.scroll_speed;
@@ -200,10 +206,10 @@ button_press(XEvent *e)
         camera.velocity = ZERO;
         break;
     case Button4:
-        scroll_up((XButtonEvent*)e);
+        scroll_up(ev->state & ControlMask);
         break;
     case Button5:
-        scroll_down((XButtonEvent*)e);
+        scroll_down(ev->state & ControlMask);
         break;
     }
 }
