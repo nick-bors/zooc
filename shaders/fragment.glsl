@@ -19,8 +19,17 @@ void main()
     // bottom of the screen (windowSize.y - cursorPos.y).
     vec4 cursor = vec4(cursorPos.x, windowSize.y - cursorPos.y, 0.0, 1.0);
 
+    float dist = distance(cursor, gl_FragCoord);
+
+    // delta doesn't need to be resolution independant since we wont scale
+    // the actual flashlight circle, just the texture behind it.
+    float delta = fwidth(dist);
+
+    // Anti aliasing as described in: https://rubendv.be/posts/fwidth/
+    float alpha = smoothstep(flRadius * cameraScale - delta, flRadius * cameraScale, dist);
+
     color = mix(
         texture(tex, texcoord), vec4(0.0, 0.0, 0.0, 0.0), 
-        length(cursor - gl_FragCoord) < (flRadius * cameraScale) ? 0.0 : flShadow
+        min(alpha, flShadow)
     );
 }

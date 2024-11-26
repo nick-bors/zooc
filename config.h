@@ -10,11 +10,10 @@ typedef struct {
     float drag_friction;
     float scale_friction;
     float scroll_speed;
-
     bool windowed;
 } Config;
 
-void writeDefaultConf(FILE*);
-Config loadConf(const char*);
+Config load_config(const char*);
+void write_default_config(FILE*);
 
 #endif

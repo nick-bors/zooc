@@ -7,11 +7,11 @@
 #include "util.h"
 
 Config
-getDefaultConf()
+get_default_config()
 {
     return (Config){
-        .min_scale = 0.01,
-        .max_scale = 2.0,
+        .min_scale = 0.1,
+        .max_scale = 6.0,
         .drag_friction = 6.0,
         .scale_friction = 4.0,
         .scroll_speed = 1.5,
@@ -19,11 +19,11 @@ getDefaultConf()
     };
 }
 
-void 
-writeDefaultConf(FILE *f)
+void
+write_default_config(FILE *f)
 {
-    fprintf(f, "min_scale      = 0.01\n");
-    fprintf(f, "max_scale      = 2.0\n");
+    fprintf(f, "min_scale      = 0.5\n");
+    fprintf(f, "max_scale      = 6.0\n");
     fprintf(f, "scroll_speed   = 1.5\n");
     fprintf(f, "drag_friction  = 6.0\n");
     fprintf(f, "scale_friction = 4.0\n");
@@ -31,20 +31,20 @@ writeDefaultConf(FILE *f)
 }
 
 Config
-loadConf(const char *fileName)
+load_config(const char *fileName)
 {
     FILE *f = fopen(fileName, "r");
     if (f == NULL) {
         f = fopen(fileName, "wr");
         if (f == NULL)
             die("Unable to open config file %s", fileName);
-        writeDefaultConf(f);
+        write_default_config(f);
     }
 
     char *line = NULL;
     size_t len = 0;
 
-    Config conf = getDefaultConf();
+    Config conf = get_default_config();
     while (getline(&line, &len, f) != -1) {
         char *c;
         c = strtok(line, " \t=");
@@ -69,10 +69,12 @@ loadConf(const char *fileName)
             } else if (!strcmp(arg, "windowed")) {
                 switch (c[0]) {
                 case 'f':
+                case 'F':
                 case '0':
                     conf.windowed = false;
                     break;
                 case 't':
+                case 'T':
                 case '1':
                     conf.windowed = true;
                     break;

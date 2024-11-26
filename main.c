@@ -1,49 +1,39 @@
-#include <X11/Xutil.h>
-#include <math.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include <sys/types.h>
 
 #include <X11/X.h>
-#include <X11/Xlib.h>
-#include <X11/Xatom.h>
 #include <X11/XKBlib.h>
+#include <X11/Xatom.h>
+#include <X11/Xlib.h>
+#include <X11/Xutil.h>
 #include <X11/keysym.h>
 
 #include <GL/glew.h>
 #include <GL/gl.h>
 #include <GL/glx.h>
-#include <string.h>
-#include <sys/types.h>
 
-#include "util.h"
 #include "config.h"
+#include "navigation.h"
+#include "util.h"
 #include "vec.h"
 
 #define MIN_GLX_MAJOR   1
 #define MIN_GLX_MINOR   3
 
-#define VELOCITY_THRESHOLD  15.0f
-#define DELTA_RADIUS_DECELERATION 10.0f
-
-typedef struct {
-    bool isEnabled;
-    GLfloat shadowPercentage;
-    GLfloat radius;
-    GLfloat deltaRadius;
-} Flashlight;
-
-typedef struct {
-    Vec2f position;
-    Vec2f velocity;
-    GLfloat scale;
-    GLfloat deltaScale;
-    GLfloat scalePivot;
-} Camera;
-
+GLuint load_shader(const char *, GLenum);
+XImage* get_screenshot();
+void button_press(XEvent *);
+void button_release(XEvent *);
+void check_glx_version(Display *);
+void destroy_screenshot(XImage*);
 void expose(XEvent *);
 void keypress(XEvent *);
-void checkGlxVersion(Display *);
+void motion_notify(XEvent *);
+void scroll_down(XButtonEvent *);
+void scroll_up(XButtonEvent *);
 
 static Display *dpy = NULL;
 static int screen = 0;
@@ -51,28 +41,21 @@ static XWindowAttributes wa;
 static Window w;
 static bool running = true;
 
-static Flashlight flashlight = {
-    .isEnabled = false,
-    .shadowPercentage = 0.0f,
-    .radius = 200.0f,
-    .deltaRadius = 0.0f,
-};
-
-static Camera camera = {
-    .position = ZERO,
-    .velocity = ZERO,
-    .scale = 1.0f,
-    .deltaScale = 0.0f,
-    .scalePivot = 0.0f
-};
+static Flashlight flashlight;
+static Camera camera;
+static Mouse mouse;
+static Config config;
 
 static void (*handler[LASTEvent]) (XEvent *) = {
+    [MotionNotify] = motion_notify,
     [Expose] = expose,
     [KeyPress] = keypress,
+    [ButtonPress] = button_press,
+    [ButtonRelease] = button_release,
 };
 
 GLuint
-loadShader(const char *name, GLenum type)
+load_shader(const char *name, GLenum type)
 {
     FILE *fp = fopen(name, "r");
     GLchar *shaderSrc = NULL;
@@ -106,7 +89,7 @@ loadShader(const char *name, GLenum type)
 }
 
 void 
-checkGlxVersion(Display *dpy)
+check_glx_version(Display *dpy)
 {
     int glx_major, glx_minor;
     // Check shit if necessary
@@ -118,7 +101,7 @@ checkGlxVersion(Display *dpy)
 
 // TODO: implement support for the MIT shared memory extension. (MIT-SHM)
 XImage*
-getScreenshot()
+get_screenshot()
 {
     return XGetImage(
         dpy, w,
@@ -130,58 +113,43 @@ getScreenshot()
 }
 
 void
-destroyScreenshot(XImage *screenshot)
+destroy_screenshot(XImage *screenshot)
 {
     XDestroyImage(screenshot);
 }
 
 void
-drawImage(XImage *img, Camera camera, GLuint shader, GLuint vao, GLuint texture, Vec2f windowSize, /*Mouse mouse,*/ Flashlight flashlight)
+draw_image(Camera *cam, XImage *img, GLuint shader, GLuint vao, Vec2f window_size, Mouse *mouse, Flashlight *fl)
 {
     glClearColor(0.1, 0.1, 0.1, 1.0);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     glUseProgram(shader);
 
-    glUniform2f(glGetUniformLocation(shader, "cameraPos"), camera.position.x, camera.position.y);
-    glUniform1f(glGetUniformLocation(shader, "cameraScale"), camera.scale);
+    glUniform2f(glGetUniformLocation(shader, "cameraPos"), cam->position.x, cam->position.y);
+    glUniform1f(glGetUniformLocation(shader, "cameraScale"), cam->scale);
     glUniform2f(glGetUniformLocation(shader, "screenshotSize"), (float)img->width, (float)img->height);
-    glUniform2f(glGetUniformLocation(shader, "windowSize"), windowSize.x, windowSize.y);
-    glUniform2f(glGetUniformLocation(shader, "cursorPos"), 1920.0f - 200.0f, 100.0f);
-    glUniform1f(glGetUniformLocation(shader, "flShadow"), flashlight.shadowPercentage);
-    glUniform1f(glGetUniformLocation(shader, "flRadius"), flashlight.radius);
+    glUniform2f(glGetUniformLocation(shader, "windowSize"), window_size.x, window_size.y);
+    glUniform2f(glGetUniformLocation(shader, "cursorPos"), mouse->current.x, mouse->current.y);
+    glUniform1f(glGetUniformLocation(shader, "flShadow"), fl->shadow);
+    glUniform1f(glGetUniformLocation(shader, "flRadius"), fl->radius);
 
     glBindVertexArray(vao);
     glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, NULL);
 }
 
-void
-updateFlashlight(GLfloat dt)
-{
-    if (fabsf(flashlight.deltaRadius) > 1.0f) {
-        flashlight.radius = MAX(0.0f, flashlight.radius + flashlight.deltaRadius * dt);
-        flashlight.deltaRadius -= flashlight.deltaRadius * DELTA_RADIUS_DECELERATION;
-    }
-
-    /* Smoothly interpolate between on/off */
-    if (flashlight.isEnabled) {
-        flashlight.shadowPercentage = MIN(flashlight.shadowPercentage + 6.0 * dt, 0.8f);
-    } else {
-        flashlight.shadowPercentage = MAX(flashlight.shadowPercentage - 6.0 * dt, 0.0f);
-    }
-}
 
 int
 main(int argc, char *argv[])
 {
-    Config conf = loadConf("config.conf");
+    config = load_config("config.conf");
 
     dpy = XOpenDisplay(NULL);
     if (dpy == NULL) {
         printf("Cannot connect to the X display server\n");
         exit(EXIT_FAILURE);
     }
-    checkGlxVersion(dpy);
+    check_glx_version(dpy);
 
     screen = DefaultScreen(dpy);
 
@@ -208,7 +176,7 @@ main(int argc, char *argv[])
         | ExposureMask 
         | ClientMessage;
 
-    if (!conf.windowed) {
+    if (!config.windowed) {
         swa.override_redirect = 1;
         swa.save_under = 1;
     }
@@ -224,15 +192,15 @@ main(int argc, char *argv[])
 
     XMapWindow(dpy, w);
 
-    char *wmName  = "coomer";
-    char *wmClass = "coomer";
-    XClassHint hints = {.res_name = wmName, .res_class = wmClass};
+    char *wm_name  = "zooc";
+    char *wm_class = "zooc";
+    XClassHint hints = {.res_name = wm_name, .res_class = wm_class};
 
-    XStoreName(dpy, w, wmName);
+    XStoreName(dpy, w, wm_name);
     XSetClassHint(dpy, w, &hints);
 
-    Atom wmDeleteAtom = XInternAtom(dpy, "WM_DELETE_WINDOW", 0);
-    XSetWMProtocols(dpy, w, &wmDeleteAtom, 1);
+    Atom wm_delete_atom = XInternAtom(dpy, "WM_DELETE_WINDOW", 0);
+    XSetWMProtocols(dpy, w, &wm_delete_atom, 1);
 
     GLXContext glc = glXCreateContext(dpy, vi, NULL, GL_TRUE);
     glXMakeCurrent(dpy, w, glc);
@@ -242,59 +210,54 @@ main(int argc, char *argv[])
     
     glViewport(0, 0, wa.width, wa.height);
 
-    // TODO: figure out what loadExtensions means
-    XSelectInput(dpy, w, ExposureMask | KeyPressMask);
+    XSelectInput(dpy, w, ButtonPressMask | ButtonReleaseMask | KeyPressMask | KeyReleaseMask | PointerMotionMask | ExposureMask);
 
-    int revertToParent;
+    int revert_to_parent;
     Window origin_win;
 
-    XGetInputFocus(dpy, &origin_win, &revertToParent);
+    XGetInputFocus(dpy, &origin_win, &revert_to_parent);
 
     // TODO: make shader source a configurable dir
     // GLchar shaderDir[] = "./shaders/";
 
-    GLuint vertexShader;
-    GLchar vertexSrc[] = "./shaders/vertex.glsl";
+    GLuint vertex_shader;
+    GLchar vertex_src[] = "./shaders/vertex.glsl";
 
-    GLuint fragmentShader;
-    GLchar fragmentSrc[] = "./shaders/fragment.glsl";
+    GLuint fragment_shader;
+    GLchar fragment_src[] = "./shaders/fragment.glsl";
 
     /* Load and compile shaders */
-    vertexShader   = loadShader(vertexSrc, GL_VERTEX_SHADER);
-    fragmentShader = loadShader(fragmentSrc, GL_FRAGMENT_SHADER);
+    vertex_shader   = load_shader(vertex_src, GL_VERTEX_SHADER);
+    fragment_shader = load_shader(fragment_src, GL_FRAGMENT_SHADER);
 
     /* Link shaders and create a program */
-    GLuint shaderProgram = glCreateProgram();
-    glAttachShader(shaderProgram, vertexShader);
-    glAttachShader(shaderProgram, fragmentShader);
-    glLinkProgram(shaderProgram);
+    GLuint shader_program = glCreateProgram();
+    glAttachShader(shader_program, vertex_shader);
+    glAttachShader(shader_program, fragment_shader);
+    glLinkProgram(shader_program);
 
     int link_success;
-    glGetProgramiv(shaderProgram, GL_LINK_STATUS, &link_success);
+    glGetProgramiv(shader_program, GL_LINK_STATUS, &link_success);
 
     if(!link_success) {
-        GLchar infoLog[512];
-        glGetProgramInfoLog(shaderProgram, 512, NULL, infoLog);
-        die("Error whilst linking program:\n%s", infoLog);
+        GLchar info_log[512];
+        glGetProgramInfoLog(shader_program, 512, NULL, info_log);
+        die("Error whilst linking program:\n%s", info_log);
     }
 
-    XImage *screenshot = getScreenshot();
-    float ww = screenshot->width;
-    float hh = screenshot->height;
+    XImage *screenshot = get_screenshot();
+    Vec2f screenshot_size = (Vec2f) {{screenshot->width, screenshot->height}};
+
+    int sw = screenshot_size.x;
+    int sh = screenshot_size.y;
 
     GLuint vbo, vao, ebo;
     GLfloat vertices[] = {
-         1.0,  -1.0, 0.0, 1.0, 1.0, // Top right
-         1.0,  1.0,  0.0, 1.0, 0.0, // Bottom right
-        -1.0,  1.0,  0.0, 0.0, 0.0, // Bottom left
-        -1.0,  -1.0, 0.0, 0.0, 1.0  // Top left
-        /*
-        //x   y     z       UV coords
-        ww,   0.0f, 0.0f,   1.0f, 1.0f, //Top right
-        ww,   hh,   0.0f,   1.0f, 0.0f, //Bot right
-        0.0f, 0.0f, 0.0f,   0.0f, 1.0f, //Bot left 
-        0.0f, hh,   0.0f,   0.0f, 0.0f, //Top left 
-        */
+        //x     y   z       UV coords
+        sw,     0,  0.0,    1.0, 1.0, /* Top right */
+        sw,     sh, 0.0,    1.0, 0.0, /* Bottom right */
+        0,      sh, 0.0,    0.0, 0.0, /* Bottom left */
+        0,      0,  0.0,    0.0, 1.0  /* Top left */
     };
     /* Indecies of the triangles. 
      * We want to fill a screen rect so we create two triangles:
@@ -328,10 +291,10 @@ main(int argc, char *argv[])
     glEnableVertexAttribArray(0);
 
     /* UV attribute = vec2(x, y) */
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, stride, (void*)0);
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, stride, (void *)(3 * sizeof(GLfloat)));
     glEnableVertexAttribArray(1);
 
-    GLint texture = 0;
+    GLuint texture = 0;
     glGenTextures(1, &texture);
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, texture);
@@ -350,56 +313,78 @@ main(int argc, char *argv[])
     glGenerateMipmap(GL_TEXTURE_2D);
 
     /* bind tex in the glsl code to be the loaded texture */
-    glUniform1i(glGetUniformLocation(shaderProgram, "tex"), 0);
+    glUniform1i(glGetUniformLocation(shader_program, "tex"), 0);
 
     glEnable(GL_TEXTURE_2D);
 
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+
+    flashlight = (Flashlight) {
+        .is_enabled = false,
+        .shadow = 0.0f,
+        .radius = 200.0f,
+        .delta_radius = 0.0f,
+    };
+
+    camera = (Camera) {
+        .position = ZERO,
+        .velocity = ZERO,
+        .scale_pivot = ZERO,
+        .scale = 1.0f,
+        .delta_scale = 0.0f,
+    };
+
+    initialize_mouse(dpy, &mouse);
 
     XEvent e;
     while (running) {
         // HACK: setting this every time is probably inefficient. Is there a 
         // better way to maintain fullscreen input focus?
-        if (!conf.windowed)
+        if (!config.windowed)
             XSetInputFocus(dpy, w, RevertToParent, CurrentTime);
+
+        while (XPending(dpy) > 0) {
+            XNextEvent(dpy, &e);
+            switch (e.type) {
+            case ClientMessage:
+                if ((Atom)e.xclient.data.l[0] == wm_delete_atom)
+                    running = false;
+                break;
+            case KeyPress:
+            case ButtonPress:
+            case ButtonRelease:
+            case MotionNotify:
+                handler[e.type](&e);
+                break;
+            default:
+                break;
+            }
+        }
 
         glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        glUseProgram(shaderProgram);
+        update_flashlight(&flashlight, 1.0f/60.0f);
+        update_camera(&camera, &config, &mouse, screenshot_size, 1.0f/60.0f);
+
+        glUseProgram(shader_program);
         glBindVertexArray(vao);
         glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
         glBindVertexArray(0);
 
-        updateFlashlight(1.0/60.0f);
-        drawImage(screenshot, camera, shaderProgram, vao, texture, (Vec2f){wa.width, wa.height}, flashlight);
+        draw_image(&camera, screenshot, shader_program, vao, screenshot_size, &mouse, &flashlight);
 
         glXSwapBuffers(dpy, w);
         glFinish();
-
-        XSync(dpy, 0);
-
-        XNextEvent(dpy, &e);
-        switch (e.type) {
-        case ClientMessage:
-            if ((Atom)e.xclient.data.l[0] == wmDeleteAtom)
-                running = false;
-            break;
-        case KeyPress:
-            handler[e.type](&e);
-            break;
-        default:
-            break;
-        }
     }
 
     XSetInputFocus(dpy, origin_win, RevertToParent, CurrentTime);
 
-    glDeleteShader(vertexShader);
-    glDeleteShader(fragmentShader);
+    glDeleteShader(vertex_shader);
+    glDeleteShader(fragment_shader);
 
     glXMakeCurrent(dpy, None, NULL);
     glXDestroyContext(dpy, glc);
@@ -408,29 +393,107 @@ main(int argc, char *argv[])
     return 0;
 }
 
-
 void 
 keypress(XEvent *e) 
 {
-    unsigned int i;
     KeySym keysym;
     XKeyEvent *ev;
 
-    printf("event: keypress\n");
-    ev = &e->xkey;
-    keysym = XkbKeycodeToKeysym(dpy, (KeyCode)ev->keycode, 0, e->xkey.state & ShiftMask ? 1 : 0);
+    ev = (XKeyEvent*)&e->xkey;
+    keysym = XkbKeycodeToKeysym(dpy, ev->keycode, 0, e->xkey.state & ShiftMask ? 1 : 0);
     switch (keysym) {
     case XK_q:
     case XK_Escape:
         running = false;
         break;
+    case XK_0:
+        camera.scale = 1.0f;
+        camera.delta_scale = 0.0f;
+        camera.velocity = camera.position = (Vec2f) {{0, 0}};
+        break;
+    case XK_r:
+        config = load_config("config.conf");
+        break;
     case XK_f:
-        flashlight.isEnabled = !flashlight.isEnabled;
+        flashlight.is_enabled = !flashlight.is_enabled;
         break;
     }
 }
 
 void
-expose(XEvent *e)
+expose(XEvent *_e)
 {
+}
+
+void
+scroll_up(XButtonEvent *e) 
+{
+    if ((e->state & ControlMask) > 0 && flashlight.is_enabled) {
+        flashlight.delta_radius += 250.0f;
+    } else {
+          camera.delta_scale += config.scroll_speed;
+          camera.scale_pivot = mouse.current;
+    }
+}
+
+void
+scroll_down(XButtonEvent *e)
+{
+    if ((e->state & ControlMask) > 0 && flashlight.is_enabled) {
+        flashlight.delta_radius -= 250.0f;
+    } else {
+        camera.delta_scale -= config.scroll_speed;
+        camera.scale_pivot = mouse.current;
+    }
+}
+
+void
+button_press(XEvent *e)
+{
+    XButtonEvent *ev;
+    
+    ev = (XButtonEvent*)&e->xbutton;
+    switch (ev->button) {
+    case Button1:
+        mouse.previous = mouse.current;
+        mouse.dragging = true;
+        camera.velocity = ZERO;
+        break;
+    case Button4:
+        scroll_up((XButtonEvent*)e);
+        break;
+    case Button5:
+        scroll_down((XButtonEvent*)e);
+        break;
+    }
+}
+
+void
+button_release(XEvent *e)
+{
+    XButtonEvent *ev;
+
+    ev = (XButtonEvent*)&e->xbutton;
+    if (ev->button == Button1)
+        mouse.dragging = false;
+}
+
+void
+motion_notify(XEvent *e)
+{
+    XMotionEvent *ev;
+
+    ev = (XMotionEvent*)&e->xmotion;
+
+    mouse.current = (Vec2f) {{ev->x, ev->y}};
+    if (mouse.dragging) {
+        Vec2f delta = SUB(world(&camera, mouse.previous), world(&camera, mouse.current));
+        /* delta is the distance the mouse traveled in a single
+         * frame. To turn the velocity into units/second we need to
+         * multiple it by FPS.
+         */
+        camera.position = ADD(camera.position, delta);
+        camera.velocity = MULS(delta, 1.0f/60.0f);
+    }
+    mouse.previous = mouse.current;
 }

@@ -1,16 +1,16 @@
 IDIR =.
 CC=gcc
-CFLAGS=-I$(IDIR) -g -Wall -Wextra -pedantic
+CFLAGS=-I$(IDIR) -g -Wall -Wextra -pedantic -Wmissing-declarations
 
 ODIR=.
 LDIR =../lib
 
-LIBS=-lX11 -lGL -lGLEW
+LIBS=-lX11 -lGL -lGLEW -lm
 
-_DEPS = util.h config.h
+_DEPS = util.h config.h navigation.h
 DEPS  = $(patsubst %,$(IDIR)/%,$(_DEPS))
 
-_OBJ = main.o util.o config.o
+_OBJ = main.o util.o config.o navigation.o
 OBJ = $(patsubst %,$(ODIR)/%,$(_OBJ))
 
 
