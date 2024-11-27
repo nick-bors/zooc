@@ -202,7 +202,7 @@ scroll_up(unsigned int delta, bool fl_enabled)
 void
 scroll_down(unsigned int delta, bool fl_enabled)
 {
-    if (delta > 0 && fl_enabled)
+    if (delta > 0 && fl_enabled) {
         flashlight.delta_radius -= 250.0f;
     else {
         camera.delta_scale -= config.scroll_speed;
@@ -262,7 +262,7 @@ motion_notify(XEvent *e)
 }
 
 int
-main(int argc, char *argv[])
+main()
 {
     config = load_config();
 
