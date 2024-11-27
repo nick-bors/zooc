@@ -17,6 +17,7 @@ get_default_config()
         .drag_friction = 6.0,
         .scale_friction = 4.0,
         .scroll_speed = 1.5,
+        .key_move_speed = 400.0,
         .windowed = false
     };
 }
@@ -29,6 +30,7 @@ write_default_config(FILE *f)
     fprintf(f, "scroll_speed   = 1.5\n");
     fprintf(f, "drag_friction  = 6.0\n");
     fprintf(f, "scale_friction = 4.0\n");
+    fprintf(f, "key_move_speed = 400.0\n");
     fprintf(f, "windowed       = false\n");
 }
 
@@ -68,6 +70,8 @@ load_config(const char *fileName)
                 conf.drag_friction = strtof(c, NULL);
             } else if (!strcmp(arg, "scale_friction")) {
                 conf.scale_friction = strtof(c, NULL);
+            } else if (!strcmp(arg, "key_move_speed")) {
+                conf.key_move_speed = strtof(c, NULL);
             } else if (!strcmp(arg, "windowed")) {
                 switch (c[0]) {
                 case 'f':

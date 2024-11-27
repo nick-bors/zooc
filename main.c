@@ -33,8 +33,8 @@ void destroy_screenshot(XImage*);
 void draw_image(Camera *, XImage *, GLuint, GLuint, Vec2f, Mouse *, Flashlight *);
 void keypress(XEvent *);
 void motion_notify(XEvent *);
-void scroll_down(unsigned int);
-void scroll_up(unsigned int);
+void scroll_down(unsigned int, bool);
+void scroll_up(unsigned int, bool);
 
 static Display *dpy = NULL;
 static int screen = 0;
@@ -147,11 +147,27 @@ keypress(XEvent *e)
     ev = (XKeyEvent*)&e->xkey;
     keysym = XkbKeycodeToKeysym(dpy, ev->keycode, 0, e->xkey.state & ShiftMask ? 1 : 0);
     switch (keysym) {
+    case XK_Left:
+    case XK_h:
+        camera.velocity.x -= config.key_move_speed;
+        break;
+    case XK_Down:
+    case XK_j:
+        camera.velocity.y += config.key_move_speed;
+        break;
+    case XK_Up:
+    case XK_k:
+        camera.velocity.y -= config.key_move_speed;
+        break;
+    case XK_Right:
+    case XK_l:
+        camera.velocity.x += config.key_move_speed;
+        break;
     case XK_minus:
-        scroll_down(1);
+        scroll_down(1, ev->state & ControlMask);
         break;
     case XK_equal:
-        scroll_up(1);
+        scroll_up(1, ev->state & ControlMask);
         break;
     case XK_q:
     case XK_Escape:
@@ -172,9 +188,9 @@ keypress(XEvent *e)
 }
 
 void
-scroll_up(unsigned int delta) 
+scroll_up(unsigned int delta, bool fl_enabled)
 {
-    if (delta > 0 && flashlight.is_enabled) {
+    if ((delta > 0) && fl_enabled) {
         flashlight.delta_radius += 250.0f;
     } else {
           camera.delta_scale += config.scroll_speed;
@@ -183,9 +199,9 @@ scroll_up(unsigned int delta)
 }
 
 void
-scroll_down(unsigned int delta)
+scroll_down(unsigned int delta, bool fl_enabled)
 {
-    if (delta > 0 && flashlight.is_enabled) {
+    if ((delta > 0) && fl_enabled) {
         flashlight.delta_radius -= 250.0f;
     } else {
         camera.delta_scale -= config.scroll_speed;
@@ -206,10 +222,10 @@ button_press(XEvent *e)
         camera.velocity = ZERO;
         break;
     case Button4:
-        scroll_up(ev->state & ControlMask);
+        scroll_up(ev->state & ControlMask, flashlight.is_enabled);
         break;
     case Button5:
-        scroll_down(ev->state & ControlMask);
+        scroll_down(ev->state & ControlMask, flashlight.is_enabled);
         break;
     }
 }

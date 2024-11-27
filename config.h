@@ -10,6 +10,7 @@ typedef struct {
     float drag_friction;
     float scale_friction;
     float scroll_speed;
+    float key_move_speed;
     bool windowed;
 } Config;
 
