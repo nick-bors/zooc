@@ -88,13 +88,13 @@ load_shader(const char *name, GLenum type)
     return shader;
 }
 
-void 
+void
 check_glx_version(Display *dpy)
 {
     int glx_major, glx_minor;
     // Check shit if necessary
     if (!glXQueryVersion(dpy, &glx_major, &glx_minor)
-        || ((glx_minor == MIN_GLX_MAJOR) && (glx_minor < MIN_GLX_MINOR))
+        || (glx_minor == MIN_GLX_MAJOR && glx_minor < MIN_GLX_MINOR)
         || (MIN_GLX_MAJOR < 1))
         die("Invalid GLX version %d.%d. Requires GLX >= %d.%d", glx_major, glx_minor, MIN_GLX_MAJOR, MIN_GLX_MINOR);
 }
@@ -119,7 +119,8 @@ destroy_screenshot(XImage *screenshot)
 }
 
 void
-draw_image(Camera *cam, XImage *img, GLuint shader, GLuint vao, Vec2f window_size, Mouse *mouse, Flashlight *fl)
+draw_image(Camera *cam, XImage *img, GLuint shader, GLuint vao,
+	Vec2f window_size, Mouse *mouse, Flashlight *fl)
 {
     glClearColor(0.1, 0.1, 0.1, 1.0);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -138,8 +139,8 @@ draw_image(Camera *cam, XImage *img, GLuint shader, GLuint vao, Vec2f window_siz
     glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, NULL);
 }
 
-void 
-keypress(XEvent *e) 
+void
+keypress(XEvent *e)
 {
     KeySym keysym;
     XKeyEvent *ev;
@@ -179,7 +180,7 @@ keypress(XEvent *e)
         camera.velocity = camera.position = (Vec2f) {0, 0};
         break;
     case XK_r:
-        config = load_config("config.conf");
+        config = load_config();
         break;
     case XK_f:
         flashlight.is_enabled = !flashlight.is_enabled;
@@ -190,7 +191,7 @@ keypress(XEvent *e)
 void
 scroll_up(unsigned int delta, bool fl_enabled)
 {
-    if ((delta > 0) && fl_enabled) {
+    if (delta > 0 && fl_enabled) {
         flashlight.delta_radius += 250.0f;
     } else {
           camera.delta_scale += config.scroll_speed;
@@ -201,7 +202,7 @@ scroll_up(unsigned int delta, bool fl_enabled)
 void
 scroll_down(unsigned int delta, bool fl_enabled)
 {
-    if ((delta > 0) && fl_enabled) {
+    if (delta > 0 && fl_enabled) {
         flashlight.delta_radius -= 250.0f;
     } else {
         camera.delta_scale -= config.scroll_speed;
@@ -261,14 +262,13 @@ motion_notify(XEvent *e)
 }
 
 int
-main(int argc, char *argv[])
+main()
 {
-    config = load_config("config.conf");
+    config = load_config();
 
     dpy = XOpenDisplay(NULL);
-    if (dpy == NULL) {
+    if (dpy == NULL)
         die("Cannot connect to the X display server\n");
-    }
     check_glx_version(dpy);
 
     screen = DefaultScreen(dpy);
@@ -282,7 +282,7 @@ main(int argc, char *argv[])
 
     XVisualInfo *vi = glXChooseVisual(dpy, screen, attrs);
     if (vi == NULL)
-        die("No appropriate visual found\n");
+        die("No appropriate visual found!\n");
 
     XSetWindowAttributes swa;
     memset(&swa,0,sizeof(XSetWindowAttributes));
@@ -302,7 +302,7 @@ main(int argc, char *argv[])
 
     XGetWindowAttributes(dpy, DefaultRootWindow(dpy), &wa);
 
-     w = XCreateWindow(
+    w = XCreateWindow(
         dpy, DefaultRootWindow(dpy), 
         0, 0, wa.width, wa.height, 0,
         vi->depth, InputOutput, vi->visual,
@@ -336,18 +336,12 @@ main(int argc, char *argv[])
 
     XGetInputFocus(dpy, &origin_win, &revert_to_parent);
 
-    // TODO: make shader source a configurable dir
-    // GLchar shaderDir[] = "./shaders/";
-
     GLuint vertex_shader;
-    GLchar vertex_src[] = "./shaders/vertex.glsl";
-
     GLuint fragment_shader;
-    GLchar fragment_src[] = "./shaders/fragment.glsl";
 
     /* Load and compile shaders */
-    vertex_shader   = load_shader(vertex_src, GL_VERTEX_SHADER);
-    fragment_shader = load_shader(fragment_src, GL_FRAGMENT_SHADER);
+    vertex_shader   = load_shader(config.vertex_shader_file, GL_VERTEX_SHADER);
+    fragment_shader = load_shader(config.fragment_shader_file, GL_FRAGMENT_SHADER);
 
     /* Link shaders and create a program */
     GLuint shader_program = glCreateProgram();
@@ -471,6 +465,7 @@ main(int argc, char *argv[])
 
         while (XPending(dpy) > 0) {
             XNextEvent(dpy, &e);
+
             switch (e.type) {
             case ClientMessage:
                 if ((Atom)e.xclient.data.l[0] == wm_delete_atom)

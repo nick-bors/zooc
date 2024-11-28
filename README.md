@@ -16,8 +16,8 @@ A C rewrite of tsoding's boomer with some added features
 | <kbd>Ctrl</kbd> + Scroll wheel            | Change the radius of the flaslight.                           |
 
 ## Configuration
-The configuration file is located at `$XDG_CONFIG_HOME/zooc/config.conf`. 
-It follows this format:
+The configuration file is located at `$XDG_CONFIG_HOME/zooc/config.conf`. It
+follows this format:
 
 ```
 <param-1> = <value-1>
@@ -33,8 +33,7 @@ Values can be of float or boolean type. Floats are parsed with `strtof`, which
 allows follows the format described [here](https://cplusplus.com/reference/cstdlib/strtof/).
 Boolean types (case insensitive) are parsed as such:
 
-`t`,`true`,`1`
-`f`,`false`,`0`
+`t`,`true`,`1` / `f`,`false`,`0`
 
 ## Building
 deps: `glew`
