@@ -1,7 +1,9 @@
 #include <ctype.h>
 #include <stdbool.h>
+#include <fcntl.h>
 #include <errno.h>
 #include <sys/stat.h>
+#include <sys/sendfile.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -33,18 +35,6 @@ get_default_config()
         .vertex_shader_file = NULL,
         .fragment_shader_file = NULL,
     };
-}
-
-void
-write_default_config(FILE *f)
-{
-    fprintf(f, "min_scale      = 0.5\n");
-    fprintf(f, "max_scale      = 6.0\n");
-    fprintf(f, "scroll_speed   = 1.5\n");
-    fprintf(f, "drag_friction  = 6.0\n");
-    fprintf(f, "scale_friction = 4.0\n");
-    fprintf(f, "key_move_speed = 400.0\n");
-    fprintf(f, "windowed       = false\n");
 }
 
 Config
@@ -80,17 +70,13 @@ load_config()
     char config_file[MAX_PATH_SIZE];
     snprintf(config_file, MAX_PATH_SIZE, "%s/config.conf", config_dir);
 
-     if (access(config_file, F_OK | R_OK)) {
-        printf("Config file %s does not exist, creating default\n", config_file);
-        FILE *f = fopen(config_file, "w");
-        if (f == NULL)
-            die("Unable to open config file %s\n", config_file);
-        write_default_config(f);
+    if (access(config_file, F_OK | R_OK)) {
+        strncpy(config_file, "/etc/zooc/config.conf", sizeof(config_file));
     }
 
     FILE *f = fopen(config_file, "r");
     if (f == NULL)
-        die("Unable to open config file %s\n", config_file);
+        die("Unable to open config file: %s\n", config_file);
 
     char *vertex_shader_file   = (char *)malloc(MAX_PATH_SIZE);
     char *fragment_shader_file = (char *)malloc(MAX_PATH_SIZE);
@@ -98,14 +84,20 @@ load_config()
     snprintf(fragment_shader_file, MAX_PATH_SIZE, "%s/fragment.glsl", config_dir);
     snprintf(vertex_shader_file, MAX_PATH_SIZE, "%s/vertex.glsl", config_dir);
 
-    char message[] = "Unable to open shader file at '%s'.\n";
+    char message[] = "Unable to open shader file at '%s'.\n%s";
     char hint[]    = "Hint: run 'make install' to create these files.\n";
 
-    if (!fopen(vertex_shader_file, "r"))
-        die(message, vertex_shader_file, hint);
+    if (!fopen(vertex_shader_file, "r")) {
+        strncpy(vertex_shader_file, "/etc/zooc/vertex.glsl\0", MAX_PATH_SIZE);
+        if (!fopen(vertex_shader_file, "r"))
+            die(message, vertex_shader_file, hint);
+    }
 
-    if (!fopen(fragment_shader_file, "r"))
-        die(message, fragment_shader_file, hint);
+    if (!fopen(fragment_shader_file, "r")) {
+        strncpy(fragment_shader_file, "/etc/zooc/fragment.glsl\0", MAX_PATH_SIZE);
+        if (!fopen(fragment_shader_file, "r"))
+            die(message, fragment_shader_file, hint);
+    }
 
     Config conf = get_default_config();
     conf.fragment_shader_file = fragment_shader_file;

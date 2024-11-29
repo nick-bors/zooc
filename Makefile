@@ -20,6 +20,7 @@ $(EXEC): $(OBJ)
 
 install:
 	install -Dm755 $(EXEC) $(DESTDIR)/usr/bin/$(EXEC)
+	install -Dm644 ./LICENSE "$(DESTDIR)/usr/share/licenses/zooc/LICENSE"
 	install -d $(DESTDIR)/etc/$(EXEC)
 
 	for file in $(CONFIG_FILES); do \
