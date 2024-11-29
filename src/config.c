@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
+#include <unistd.h>
 
 #include "config.h"
 #include "util.h"
@@ -28,7 +29,7 @@ get_default_config()
         .key_move_speed = 400.0,
         .windowed = false,
 
-        /* Sex in code */
+        /* Set in code */
         .vertex_shader_file = NULL,
         .fragment_shader_file = NULL,
     };
@@ -79,7 +80,7 @@ load_config()
 
 	 if (access(filename, F_OK | R_OK)) {
         printf("Config file %s does not exist, creating default\n", filename);
-        FILE *f = fopen(filename, "wr");
+        FILE *f = fopen(filename, "w");
         if (f == NULL)
             die("Unable to open config file %s\n", filename);
         write_default_config(f);
@@ -89,7 +90,7 @@ load_config()
     if (f == NULL)
         die("Unable to open config file %s\n", filename);
 
-    char *vertex_shader_file = (char *)malloc(MAX_PATH_SIZE);
+    char *vertex_shader_file   = (char *)malloc(MAX_PATH_SIZE);
     char *fragment_shader_file = (char *)malloc(MAX_PATH_SIZE);
 
     snprintf(fragment_shader_file, MAX_PATH_SIZE, "%s/fragment.glsl", config_dir);

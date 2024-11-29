@@ -191,9 +191,9 @@ keypress(XEvent *e)
 void
 scroll_up(unsigned int delta, bool fl_enabled)
 {
-    if (delta > 0 && fl_enabled)
+    if (delta > 0 && fl_enabled) {
         flashlight.delta_radius += 250.0f;
-    else {
+    } else {
           camera.delta_scale += config.scroll_speed;
           camera.scale_pivot = mouse.current;
     }
