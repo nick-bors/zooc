@@ -6,7 +6,7 @@ SRC=$(wildcard src/*.c)
 INCLUDES=-I.
 OBJ=$(SRC:.c=.o)
 
-CONFIG_FILES=$(wildcard *.glsl)
+CONFIG_FILES=$(wildcard *.glsl) $(wildcard *.conf)
 
 EXEC=zooc
 
@@ -23,7 +23,7 @@ install:
 	install -d $(DESTDIR)/etc/$(EXEC)
 
 	for file in $(CONFIG_FILES); do \
-		install -Dm644 $$file $(DESTDIR)/etc/$(EXEC)/$$file; \
+		install -Dm644 $$file $(DESTDIR)/etc/$(EXEC)/$$(echo $$file | sed 's/\.example//'); \
 	done
 
 clean:
