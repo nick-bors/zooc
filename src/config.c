@@ -115,6 +115,10 @@ parse_config(Config *conf, FILE *f)
 
     size_t cur_line = 1;
     while (getline(&line, &len, f) != -1) {
+        if (line[0] == '#' || line[0] == '\n') {
+            cur_line++;
+            continue;
+        }
         char *c;
         c = strtok(line, " \t=");
         while (c != NULL) {
