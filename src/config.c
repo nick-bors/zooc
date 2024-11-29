@@ -28,7 +28,7 @@ get_default_config()
         .key_move_speed = 400.0,
         .windowed = false,
 
-        /* Set in code */
+        /* Sex in code */
         .vertex_shader_file = NULL,
         .fragment_shader_file = NULL,
     };
@@ -77,14 +77,17 @@ load_config()
     char config_file[MAX_PATH_SIZE];
     snprintf(config_file, MAX_PATH_SIZE, "%s/config.conf", config_dir);
 
-    FILE *f = fopen(config_file, "r");
-
-    if (f == NULL) {
-        f = fopen(config_file, "wr");
+	 if (access(filename, F_OK | R_OK)) {
+        printf("Config file %s does not exist, creating default\n", filename);
+        FILE *f = fopen(filename, "wr");
         if (f == NULL)
-            die("Unable to open config file %s for writing:", config_file);
+            die("Unable to open config file %s\n", filename);
         write_default_config(f);
     }
+
+    FILE *f = fopen(filename, "r");
+    if (f == NULL)
+        die("Unable to open config file %s\n", filename);
 
     char *vertex_shader_file = (char *)malloc(MAX_PATH_SIZE);
     char *fragment_shader_file = (char *)malloc(MAX_PATH_SIZE);
@@ -130,24 +133,22 @@ parse_config(Config *conf, FILE *f)
             if (c == NULL)
                 die(NULL, "Expected value for argument %s\n", arg);
 
-            if (!strcmp(arg, "min_scale")) {
+            if (!strcmp(arg, "min_scale"))
                 conf->min_scale = strtof(c, NULL);
-            } else if (!strcmp(arg, "max_scale")) {
+            else if (!strcmp(arg, "max_scale"))
                 conf->max_scale = strtof(c, NULL);
-            } else if (!strcmp(arg, "scroll_speed")) {
+            else if (!strcmp(arg, "scroll_speed"))
                 conf->scroll_speed = strtof(c, NULL);
-            } else if (!strcmp(arg, "drag_friction")) {
+            else if (!strcmp(arg, "drag_friction"))
                 conf->drag_friction = strtof(c, NULL);
-            } else if (!strcmp(arg, "scale_friction")) {
+            else if (!strcmp(arg, "scale_friction"))
                 conf->scale_friction = strtof(c, NULL);
-            } else if (!strcmp(arg, "key_move_speed")) {
+            else if (!strcmp(arg, "key_move_speed"))
                 conf->key_move_speed = strtof(c, NULL);
-            } else if (!strcmp(arg, "windowed")) {
+            else if (!strcmp(arg, "windowed"))
                 if(parse_bool(c) != -1)
                     conf->windowed = (bool)parse_bool(c);
-            } else {
-                die("Unexpected configuration key '%s'\n", arg);
-            }
+            else die("Unexpected configuration key '%s'\n", arg);
 
             /* get next arg */
             c = strtok(NULL, " \t=");
