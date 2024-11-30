@@ -18,6 +18,5 @@ typedef struct {
 } Config;
 
 Config load_config();
-void write_default_config(FILE*);
 
 #endif

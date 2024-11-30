@@ -256,7 +256,7 @@ motion_notify(XEvent *e)
          * multiple it by FPS.
          */
         camera.position = ADD(camera.position, delta);
-        camera.velocity = MULS(delta, camera.dt);
+        camera.velocity = MULS(delta, 1.0f/camera.dt);
     }
     mouse.previous = mouse.current;
 }
