@@ -78,8 +78,8 @@ load_config()
     if (f == NULL)
         die("Unable to open config file: %s\n", config_file);
 
-    char *vertex_shader_file   = (char *)malloc(MAX_PATH_SIZE);
-    char *fragment_shader_file = (char *)malloc(MAX_PATH_SIZE);
+    char *vertex_shader_file   = malloc(MAX_PATH_SIZE);
+    char *fragment_shader_file = malloc(MAX_PATH_SIZE);
 
     snprintf(fragment_shader_file, MAX_PATH_SIZE, "%s/fragment.glsl", config_dir);
     snprintf(vertex_shader_file, MAX_PATH_SIZE, "%s/vertex.glsl", config_dir);
@@ -126,7 +126,7 @@ parse_config(Config *conf, FILE *f)
             char *arg = c;
 
             /* Here, we ignore tabs spaces and equals. Equals is optional in
-             * the config and isn't actually required. This is deliberate so 
+             * the config and isn't actually required. This is deliberate so
              * users can format as they like (though the default uses =)
              */
             c = strtok(NULL, " \t=");
