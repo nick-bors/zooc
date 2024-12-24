@@ -262,8 +262,24 @@ motion_notify(XEvent *e)
 }
 
 int
-main()
+main(int argc, char *args[])
 {
+    if (argc > 1)
+    {
+        die("Usage: %s\n\n"
+            "KEYBINDS                       DESCRIPTION\n"
+            "[0]                            Reset the application state (position, scale, velocity, etc).\n"
+            "[q] or [ESC]                   Quit the application.\n"
+            "[r]                            Reload configuration.\n"
+            "[Ctrl] + [r]                   Reload the shaders (only for Developer mode)\n"
+            "[f]                            Toggle flashlight effect.\n"
+            "[Left mouse button] + [Drag]   Move the image around.\n"
+            "[h|j|k|l] or [Arrow keys]      Move the image around with the keyboard.\n"
+            "[Scroll wheel] or [=/-]        Zoom in/out.\n"
+            "[Ctrl] + [Scroll wheel]        Change the radius of the flaslight.",
+            args[0]);
+    }
+
     config = load_config();
 
     dpy = XOpenDisplay(NULL);
