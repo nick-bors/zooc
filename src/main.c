@@ -262,8 +262,17 @@ motion_notify(XEvent *e)
 }
 
 int
-main()
+main(int argc, char *argv[])
 {
+    UNUSED(argv);
+
+    if (argc > 1) {
+        die("zooc-1.0\n"
+                "Usage: zooc\n"
+                "\n"
+                "For instructions on controls, try:\n"
+                "$ man 1 zooc\n");
+    }
     config = load_config();
 
     dpy = XOpenDisplay(NULL);

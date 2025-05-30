@@ -1,0 +1,94 @@
+.TH ZOOC 1 "May 2025" "1.0" "User Commands"
+.SH NAME
+zooc \- A magnifying application.
+.SH SYNOPSIS
+.B command
+[\fI\,OPTIONS\fR]
+.SH DESCRIPTION
+.PP
+This program is a re-write of Tsoding's Boomer in C, with additional features.
+When ran, zooc zooms into the frame buffer and allows for interactivity with it.
+The default keybindings are shown below, however they can be edited through the configuration file.
+
+.TP
+\fB0\fR
+Reset the application state (position, scale, velocity, etc).
+.TP
+\fBq or ESC\fR
+Quit the application.
+.TP
+\fBr\fR
+Reload configuration.
+.TP
+\fBf\fR
+Toggle flashlight effect.
+.TP
+\fBDrag with left mouse button\fR
+Move the image around.
+.TP
+\fBhjkl + arrow keys\fR
+Move the image around with the keyboard.
+.TP
+\fBScroll wheel or =/-\fR
+Zoom in/out.
+.TP
+\fBCtrl + Scroll wheel or =/-\fR
+Change the radius of the flaslight.
+.PP
+The configuration file is located at \fI$XDG_CONFIG_HOME/zooc/config.conf\fR. It
+follows this format:
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+<param-1> = <value-1>
+<param-2> = <value-2>
+.RE
+.fi
+.PP
+However the `=` is optional and can be omitted, or replaced with a ':'.
+Spaces are optional and are ignored.
+.PP
+Values can be of float or boolean type. Floats are parsed with `strtof`, which
+allows follows the format described in \fBstrtod(3)\fR
+Boolean types (case insensitive) are parsed as such:
+.sp
+`t`,`true`,`1` / `f`,`false`,`0`
+.SH FILES
+.sp
+\fB$XDG_CONFIG_HOME/zooc/config.conf\fR
+.SH EXAMPLES
+.PP
+\fBDefault configuration for "config.conf"\fR
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+min_scale        = 0.7
+max_scale        = 7.0
+drag_friction    = 6.0
+scale_friction   = 4.0
+scroll_speed     = 1.5
+key_move_speed   = 400.0
+windowed         = false
+.RE
+.fi
+.SH AUTHOR
+Nick Bors <nick@nickbors.cc>
+
+.SH SEE ALSO
+\fBUSER-DIRS.CONF\fR(5), \fBstrtod\fR(3)
+.SH NOTES
+.IP " 1." 4
+Tsoding's "boomer"
+.RS 4
+\%https://github.com/tsoding/boomer
+.RE
+.IP " 2." 4
+Official zooc git repositories
+.RS 4
+\%https://git.nickbors.cc/zooc
+\%https://github.com/nick-bors/zooc
+.RE
